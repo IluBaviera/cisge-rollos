@@ -60,6 +60,7 @@ export function getConfig() {
 
 // ── POST / PUT ───────────────────────────────────────────────────────────────
 
+export function putRollo(id_rollo, data) { return send('PUT', `/rollos/${encodeURIComponent(id_rollo)}`, data); }
 export function postIngreso(data)    { return send('POST', '/rollos/ingresos',    data); }
 export function postMovimiento(data) { return send('POST', '/rollos/movimientos', data); }
 export function postTraslado(data)   { return send('POST', '/rollos/traslados',   data); }

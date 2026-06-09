@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { getRollos } from './api.js';
+import { getRollos, putRollo } from './api.js';
+import Modal from './Modal.jsx';
+
+const ESTADOS = ['disponible', 'retazo', 'agotado'];
 
 function adaptarRollos(data) {
   const map = {};
@@ -22,7 +25,124 @@ function adaptarRollos(data) {
   );
 }
 
-function RolloRow({ rollo }) {
+// ── Modal de edición ──────────────────────────────────────────────────────────
+
+function EditModal({ rollo, onClose, onSaved }) {
+  const tieneCortes = rollo.metros_actuales < rollo.metros_inicial;
+
+  const [ubicacion,    setUbicacion]    = useState(rollo.ubicacion    ?? '');
+  const [referencia,   setReferencia]   = useState(rollo.referencia   ?? '');
+  const [metros,       setMetros]       = useState(String(rollo.metros_inicial));
+  const [estado,       setEstado]       = useState(rollo.estado       ?? 'disponible');
+  const [saving,       setSaving]       = useState(false);
+  const [error,        setError]        = useState(null);
+
+  const handleGuardar = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await putRollo(rollo.id_rollo, {
+        ubicacion:     ubicacion.trim()   || null,
+        referencia:    referencia.trim()  || null,
+        metros_inicial: tieneCortes ? undefined : parseFloat(metros) || rollo.metros_inicial,
+        estado,
+      });
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={`Editar rollo ${rollo.id_rollo}`} onClose={onClose}>
+      <div className="px-5 py-4 flex flex-col gap-4">
+
+        {tieneCortes && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
+            Este rollo ya tiene movimientos. Los metros iniciales no se pueden modificar.
+          </div>
+        )}
+
+        <div>
+          <label className="block text-xs text-gray-500 font-medium mb-1">Metros iniciales</label>
+          {tieneCortes ? (
+            <div className="input bg-gray-50 text-gray-400 cursor-not-allowed">
+              {rollo.metros_inicial.toFixed(2)} m
+            </div>
+          ) : (
+            <input
+              type="number"
+              inputMode="decimal"
+              className="input"
+              value={metros}
+              onChange={e => setMetros(e.target.value)}
+              min="0.1"
+              step="0.1"
+            />
+          )}
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 font-medium mb-1">Ubicación</label>
+          <input
+            className="input"
+            placeholder="Ej. A-3"
+            value={ubicacion}
+            onChange={e => setUbicacion(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 font-medium mb-1">Referencia</label>
+          <input
+            className="input"
+            placeholder="Ej. OC-2025-001"
+            value={referencia}
+            onChange={e => setReferencia(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 font-medium mb-1">Estado</label>
+          <select
+            className="input"
+            value={estado}
+            onChange={e => setEstado(e.target.value)}
+          >
+            {ESTADOS.map(e => (
+              <option key={e} value={e}>{e}</option>
+            ))}
+          </select>
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-500 font-mono break-all">{error}</p>
+        )}
+
+        <div className="flex gap-3 pt-1 pb-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-medium hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleGuardar}
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-xl bg-blue-700 text-white text-sm font-semibold disabled:opacity-60"
+          >
+            {saving ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Fila de rollo ─────────────────────────────────────────────────────────────
+
+function RolloRow({ rollo, onEdit }) {
   const pct = rollo.metros_inicial > 0
     ? Math.round((rollo.metros_actuales / rollo.metros_inicial) * 100)
     : 0;
@@ -33,8 +153,13 @@ function RolloRow({ rollo }) {
           <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
             {rollo.id_rollo}
           </span>
-          <span className="text-sm text-gray-600 truncate">Est. {rollo.ubicacion}</span>
+          <span className="text-sm text-gray-600 truncate">
+            {rollo.ubicacion ? `Est. ${rollo.ubicacion}` : <span className="text-gray-300">Sin ubicación</span>}
+          </span>
         </div>
+        {rollo.referencia && (
+          <div className="text-xs text-gray-400 mt-0.5 ml-0.5">{rollo.referencia}</div>
+        )}
       </div>
       <div className="text-right flex-shrink-0">
         <div className="font-semibold text-gray-900 text-sm">{rollo.metros_actuales.toFixed(1)} m</div>
@@ -44,11 +169,20 @@ function RolloRow({ rollo }) {
           {pct}% restante
         </div>
       </div>
+      <button
+        onClick={() => onEdit(rollo)}
+        className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+        title="Editar rollo"
+      >
+        ✏️
+      </button>
     </div>
   );
 }
 
-function ProductoCard({ producto, query }) {
+// ── Tarjeta de producto ───────────────────────────────────────────────────────
+
+function ProductoCard({ producto, query, onEdit }) {
   const [open, setOpen] = useState(false);
 
   const highlight = text => {
@@ -98,7 +232,7 @@ function ProductoCard({ producto, query }) {
       {open && (
         <div className="border-t border-gray-100">
           {producto.rollos.map(r => (
-            <RolloRow key={r.id_rollo} rollo={r} />
+            <RolloRow key={r.id_rollo} rollo={r} onEdit={onEdit} />
           ))}
         </div>
       )}
@@ -106,11 +240,14 @@ function ProductoCard({ producto, query }) {
   );
 }
 
+// ── Vista principal ───────────────────────────────────────────────────────────
+
 export default function MisRollosView() {
-  const [productos, setProductos] = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
-  const [query,     setQuery]     = useState('');
+  const [productos,      setProductos]      = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [error,          setError]          = useState(null);
+  const [query,          setQuery]          = useState('');
+  const [rolloEditando,  setRolloEditando]  = useState(null);
 
   const fetch_ = () => {
     setLoading(true);
@@ -121,6 +258,11 @@ export default function MisRollosView() {
   };
 
   useEffect(fetch_, []);
+
+  const handleSaved = () => {
+    setRolloEditando(null);
+    fetch_();
+  };
 
   if (loading) return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400 py-20">
@@ -149,6 +291,14 @@ export default function MisRollosView() {
 
   return (
     <div className="flex flex-col h-full">
+      {rolloEditando && (
+        <EditModal
+          rollo={rolloEditando}
+          onClose={() => setRolloEditando(null)}
+          onSaved={handleSaved}
+        />
+      )}
+
       <div className="px-4 pt-3 pb-2">
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
@@ -181,7 +331,14 @@ export default function MisRollosView() {
             <p className="text-sm">Sin resultados</p>
           </div>
         ) : (
-          filtrados.map(p => <ProductoCard key={p.codf} producto={p} query={query} />)
+          filtrados.map(p => (
+            <ProductoCard
+              key={p.codf}
+              producto={p}
+              query={query}
+              onEdit={setRolloEditando}
+            />
+          ))
         )}
       </div>
     </div>
