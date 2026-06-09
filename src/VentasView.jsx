@@ -1,17 +1,42 @@
 import { useState, useEffect } from 'react';
-import { getRollos } from './api.js';
+import { getStock } from './api.js';
 import HoseInventory from './HoseInventory.jsx';
 
+function adaptarStock(response) {
+  const map = {};
+  for (const p of (response.productos ?? [])) {
+    if (!p.subfamilia?.toUpperCase().startsWith('MANGUERA')) continue;
+    const metros = Object.values(p.almacenes ?? {}).reduce((s, v) => s + v, 0);
+    if (map[p.codigo]) {
+      map[p.codigo].metros_disponibles += metros;
+    } else {
+      map[p.codigo] = {
+        id:                 p.codigo,
+        nombre:             p.descripcion,
+        marca:              p.marca,
+        categoria:          p.subfamilia,
+        metros_disponibles: metros,
+      };
+    }
+  }
+  return Object.values(map);
+}
+
 export default function VentasView({ onLogout }) {
-  const [rollos,  setRollos]  = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  const [productos, setProductos] = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(null);
 
   const fetch_ = () => {
     setLoading(true);
     setError(null);
-    getRollos()
-      .then(data => { setRollos(data); setLoading(false); })
+    getStock()
+      .then(data => {
+        const adapted = adaptarStock(data);
+        console.log(adapted.slice(0, 5));
+        setProductos(adapted);
+        setLoading(false);
+      })
       .catch(err  => { setError(err.message); setLoading(false); });
   };
 
@@ -41,7 +66,7 @@ export default function VentasView({ onLogout }) {
         {loading && (
           <div className="flex flex-col items-center justify-center gap-3 text-gray-400 h-full">
             <div className="w-8 h-8 border-2 border-blue-300 border-t-blue-700 rounded-full animate-spin" />
-            <p className="text-sm">Cargando rollos…</p>
+            <p className="text-sm">Cargando inventario…</p>
           </div>
         )}
 
@@ -58,7 +83,7 @@ export default function VentasView({ onLogout }) {
           </div>
         )}
 
-        {!loading && !error && <HoseInventory rollos={rollos} />}
+        {!loading && !error && <HoseInventory productos={productos} />}
       </div>
     </div>
   );

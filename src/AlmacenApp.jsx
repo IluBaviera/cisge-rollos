@@ -11,13 +11,13 @@ const TABS = [
 ];
 
 export default function AlmacenApp({ onLogout }) {
-  const [tab, setTab]      = useState('pedidos');
-  const [pedidoId, setPedidoId] = useState(null);
+  const [tab, setTab]               = useState('pedidos');
+  const [pedidoActual, setPedidoActual] = useState(null);
 
-  const goDetalle = id => { setPedidoId(id); };
-  const goVolver  = () => { setPedidoId(null); };
+  const goDetalle = pedido => { setPedidoActual(pedido); };
+  const goVolver  = ()     => { setPedidoActual(null); };
 
-  const handleTab = t => { setPedidoId(null); setTab(t); };
+  const handleTab = t => { setPedidoActual(null); setTab(t); };
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -42,8 +42,8 @@ export default function AlmacenApp({ onLogout }) {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {pedidoId ? (
-          <DetallePedidoView pedidoId={pedidoId} onVolver={goVolver} />
+        {pedidoActual ? (
+          <DetallePedidoView pedido={pedidoActual} onVolver={goVolver} />
         ) : tab === 'pedidos' ? (
           <PedidosView onDetalle={goDetalle} />
         ) : tab === 'rollos' ? (
@@ -54,7 +54,7 @@ export default function AlmacenApp({ onLogout }) {
       </div>
 
       {/* Bottom Nav */}
-      {!pedidoId && (
+      {!pedidoActual && (
         <nav className="bg-white border-t border-gray-200 flex safe-bottom flex-shrink-0 shadow-lg">
           {TABS.map(t => (
             <button

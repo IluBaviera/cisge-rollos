@@ -1,15 +1,63 @@
 import { useState } from 'react';
 import {
-  mangueras, CATEGORIAS,
+  mangueras as manguerasMock, CATEGORIAS,
   rollos as rollosMock,
   getRolloDisponible, formatFecha,
 } from './data/mockData.js';
 
-const TABS = Object.keys(CATEGORIAS);
+const TABS_LEGACY = Object.keys(CATEGORIAS);
+
+// ── Modo stock: tarjeta plana, metros_disponibles directo ─────────────────────
+
+function StockCard({ producto, query }) {
+  const highlight = text => {
+    if (!query) return text;
+    const i = text.toLowerCase().indexOf(query.toLowerCase());
+    if (i === -1) return text;
+    return (
+      <>
+        {text.slice(0, i)}
+        <mark className="bg-yellow-200 text-gray-900 rounded">
+          {text.slice(i, i + query.length)}
+        </mark>
+        {text.slice(i + query.length)}
+      </>
+    );
+  };
+
+  const disp = producto.metros_disponibles;
+  return (
+    <div className="card mb-3 px-4 py-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-gray-900 leading-tight">
+            {highlight(producto.nombre)}
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-gray-400 font-mono">{highlight(producto.id)}</span>
+            {producto.marca && (
+              <span className="text-xs bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">
+                {producto.marca}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <div className={`font-bold text-xl leading-tight ${disp > 0 ? 'text-blue-700' : 'text-red-400'}`}>
+            {disp.toFixed(1)}
+          </div>
+          <div className="text-xs text-gray-400">metros</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modo rollos: tarjeta expandible con filas por rollo ───────────────────────
 
 function RolloRow({ rollo }) {
   const disp = getRolloDisponible(rollo);
-  const pct = Math.round((disp / rollo.metros_totales) * 100);
+  const pct  = Math.round((disp / rollo.metros_totales) * 100);
   return (
     <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-50">
       <div className="flex-1 min-w-0">
@@ -39,29 +87,28 @@ function MangueraCard({ manguera, query, rollos }) {
   const disp    = rollosM.reduce((s, r) => s + getRolloDisponible(r), 0);
   const avg     = rollosM.length ? disp / rollosM.length : 0;
 
-  const highlightText = text => {
+  const highlight = text => {
     if (!query) return text;
-    const idx = text.toLowerCase().indexOf(query.toLowerCase());
-    if (idx === -1) return text;
+    const i = text.toLowerCase().indexOf(query.toLowerCase());
+    if (i === -1) return text;
     return (
       <>
-        {text.slice(0, idx)}
-        <mark className="bg-yellow-200 text-gray-900 rounded">{text.slice(idx, idx + query.length)}</mark>
-        {text.slice(idx + query.length)}
+        {text.slice(0, i)}
+        <mark className="bg-yellow-200 text-gray-900 rounded">
+          {text.slice(i, i + query.length)}
+        </mark>
+        {text.slice(i + query.length)}
       </>
     );
   };
 
   return (
     <div className="card mb-3">
-      <button
-        className="w-full text-left px-4 py-4"
-        onClick={() => setOpen(o => !o)}
-      >
+      <button className="w-full text-left px-4 py-4" onClick={() => setOpen(o => !o)}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-gray-900 leading-tight">
-              {highlightText(manguera.nombre)}
+              {highlight(manguera.nombre)}
             </div>
             <div className="text-xs text-gray-400 font-mono mt-0.5">{manguera.codigo}</div>
           </div>
@@ -97,22 +144,43 @@ function MangueraCard({ manguera, query, rollos }) {
   );
 }
 
-export default function HoseInventory({ rollos = rollosMock }) {
-  const [tab, setTab] = useState(TABS[0]);
+// ── Componente principal ──────────────────────────────────────────────────────
+//
+// Modos:
+//   productos={[{id, nombre, marca, categoria, metros_disponibles}]}  → stock mode
+//   rollos={[{id, manguera_id, ...}]}  (default: mock)                → rolls mode
+
+export default function HoseInventory({ rollos = rollosMock, productos = null }) {
+  const isStock = productos !== null;
+
+  // En modo stock, tabs dinámicas derivadas de subfamilia; en modo rollos, estáticas.
+  const tabKeys = isStock
+    ? [...new Set(productos.map(p => p.categoria))]
+    : TABS_LEGACY;
+
+  const [tab,   setTab]   = useState(() => tabKeys[0] ?? '');
   const [query, setQuery] = useState('');
 
-  const filtered = mangueras.filter(m => {
-    const matchCat = query ? true : m.categoria === tab;
+  const lista     = isStock ? productos : manguerasMock;
+  const getCodigo = item  => isStock ? item.id : item.codigo;
+
+  // "MANGUERAS HIDRAULICAS" → "HIDRAULICAS", "MANGUERAS DE AIRE Y AGUA" → "AIRE"
+  const tabLabel = t => isStock
+    ? t.replace(/^MANGUERAS\s+(DE\s+)?/i, '').split(' ')[0]
+    : CATEGORIAS[t].split(' / ')[0];
+
+  const filtered = lista.filter(item => {
+    const matchCat = query ? true : item.categoria === tab;
     const matchQ   = query
-      ? m.nombre.toLowerCase().includes(query.toLowerCase()) ||
-        m.codigo.toLowerCase().includes(query.toLowerCase())
+      ? item.nombre.toLowerCase().includes(query.toLowerCase()) ||
+        getCodigo(item).toLowerCase().startsWith(query.toLowerCase())
       : true;
     return matchCat && matchQ;
   });
 
   return (
     <div className="flex flex-col h-full">
-      {/* Search */}
+      {/* Buscador */}
       <div className="px-4 pt-3 pb-2">
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
@@ -136,21 +204,21 @@ export default function HoseInventory({ rollos = rollosMock }) {
       {/* Tabs */}
       {!query && (
         <div className="flex border-b border-gray-200 px-4">
-          {TABS.map(t => (
+          {tabKeys.map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+              className={`flex-1 py-2 text-xs font-semibold transition-colors truncate ${
                 tab === t ? 'tab-active' : 'tab-inactive'
               }`}
             >
-              {CATEGORIAS[t].split(' / ')[0]}
+              {tabLabel(t)}
             </button>
           ))}
         </div>
       )}
 
-      {/* List */}
+      {/* Lista */}
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-24">
         {query && (
           <p className="text-xs text-gray-400 mb-3">
@@ -162,6 +230,8 @@ export default function HoseInventory({ rollos = rollosMock }) {
             <span className="text-4xl mb-3">🔎</span>
             <p className="text-sm">Sin resultados</p>
           </div>
+        ) : isStock ? (
+          filtered.map(p => <StockCard key={p.id} producto={p} query={query} />)
         ) : (
           filtered.map(m => <MangueraCard key={m.id} manguera={m} query={query} rollos={rollos} />)
         )}
