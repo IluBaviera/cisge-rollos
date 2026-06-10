@@ -205,32 +205,13 @@ export default function PedidosView({ onDetalle }) {
   return (
     <div className="flex-1 overflow-y-auto px-3 pt-3 pb-24">
 
-      {/* Selector de fecha */}
-      <div className="flex items-center gap-2 mb-3">
-        <input
-          type="date"
-          value={fecha}
-          max={hoy()}
-          onChange={e => setFecha(e.target.value)}
-          className="input text-sm flex-1"
-        />
-        {fecha !== hoy() && (
-          <button
-            onClick={() => setFecha(hoy())}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 transition-colors flex-shrink-0"
-          >
-            Hoy
-          </button>
-        )}
-      </div>
-
-      {/* Filtros */}
+      {/* Filtros + selector de fecha */}
       <div className="flex items-center gap-2 mb-3">
         {FILTROS.map(f => (
           <button
             key={f.id}
             onClick={() => setFiltro(f.id)}
-            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ${
               filtro === f.id
                 ? 'bg-blue-700 border-blue-700 text-white'
                 : 'bg-white border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600'
@@ -239,9 +220,23 @@ export default function PedidosView({ onDetalle }) {
             {f.label}
           </button>
         ))}
-        <span className="ml-auto text-xs text-gray-400">
-          {filtrados.length} cotizaciones
-        </span>
+        <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+          {fecha !== hoy() && (
+            <button
+              onClick={() => setFecha(hoy())}
+              className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 transition-colors"
+            >
+              Hoy
+            </button>
+          )}
+          <input
+            type="date"
+            value={fecha}
+            max={hoy()}
+            onChange={e => setFecha(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-600 bg-white focus:outline-none focus:border-blue-400"
+          />
+        </div>
       </div>
 
       <SeccionTabla
