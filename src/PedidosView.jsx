@@ -295,13 +295,6 @@ export default function PedidosView({ onDetalle }) {
     </div>
   );
 
-  if (pedidos.length === 0) return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400 py-20">
-      <span className="text-4xl">📋</span>
-      <p className="text-sm">Sin cotizaciones</p>
-    </div>
-  );
-
   const esManguera = p => p.lineas?.some(l =>
     l.subfamilia?.toUpperCase().includes('MANGUERA')
   );
@@ -364,25 +357,33 @@ export default function PedidosView({ onDetalle }) {
         </div>
       </div>
 
-      <SeccionTabla
-        titulo="🔴 Urgentes"
-        count={urgentes.length}
-        colorTitulo="text-red-600"
-        colorCount="bg-red-100 text-red-600"
-        filas={urgentes}
-        onDetalle={onDetalle}
-        {...tableProps}
-      />
-
-      <SeccionTabla
-        titulo="Pendientes"
-        count={pendientes.length}
-        colorTitulo="text-gray-500"
-        colorCount="bg-gray-100 text-gray-500"
-        filas={pendientes}
-        onDetalle={onDetalle}
-        {...tableProps}
-      />
+      {urgentes.length === 0 && pendientes.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 text-gray-400 py-20">
+          <span className="text-4xl">📋</span>
+          <p className="text-sm">Sin cotizaciones para esta fecha</p>
+        </div>
+      ) : (
+        <>
+          <SeccionTabla
+            titulo="🔴 Urgentes"
+            count={urgentes.length}
+            colorTitulo="text-red-600"
+            colorCount="bg-red-100 text-red-600"
+            filas={urgentes}
+            onDetalle={onDetalle}
+            {...tableProps}
+          />
+          <SeccionTabla
+            titulo="Pendientes"
+            count={pendientes.length}
+            colorTitulo="text-gray-500"
+            colorCount="bg-gray-100 text-gray-500"
+            filas={pendientes}
+            onDetalle={onDetalle}
+            {...tableProps}
+          />
+        </>
+      )}
     </div>
   );
 }
