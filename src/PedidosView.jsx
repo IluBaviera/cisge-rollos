@@ -288,11 +288,13 @@ export default function PedidosView({ onDetalle }) {
 
   const filtrados = filtro === 'mangueras' ? pedidos.filter(esManguera) : pedidos;
 
-  // Aplicar ordenamiento
+  // Aplicar ordenamiento — hora y fecha usan timestamp para orden correcto
+  const SORT_KEY = { hora: 'timestamp', fecha: 'timestamp' };
   const sorted = sortCol
     ? [...filtrados].sort((a, b) => {
-        const va = a[sortCol] ?? '';
-        const vb = b[sortCol] ?? '';
+        const key = SORT_KEY[sortCol] ?? sortCol;
+        const va = a[key] ?? '';
+        const vb = b[key] ?? '';
         const cmp = typeof va === 'number'
           ? va - vb
           : String(va).localeCompare(String(vb), 'es');
