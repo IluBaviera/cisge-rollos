@@ -231,7 +231,12 @@ export default function PedidosView({ onDetalle }) {
   const [error,     setError]     = useState(null);
   const [filtro,    setFiltro]    = useState('mangueras');
   const [fecha,     setFecha]     = useState(hoy);
-  const [colWidths, setColWidths] = useState(DEFAULT_WIDTHS);
+  const [colWidths, setColWidths] = useState(() => {
+    try {
+      const saved = localStorage.getItem('pedidos-col-widths');
+      return saved ? { ...DEFAULT_WIDTHS, ...JSON.parse(saved) } : DEFAULT_WIDTHS;
+    } catch { return DEFAULT_WIDTHS; }
+  });
   const [sortCol,   setSortCol]   = useState(null);
   const [sortDir,   setSortDir]   = useState('asc');
   const dragRef = useRef(null);
@@ -258,7 +263,11 @@ export default function PedidosView({ onDetalle }) {
     const onMove = e => {
       const { col, startX, startW } = dragRef.current;
       const newW = Math.max(40, startW + e.clientX - startX);
-      setColWidths(prev => ({ ...prev, [col]: newW }));
+      setColWidths(prev => {
+        const next = { ...prev, [col]: newW };
+        localStorage.setItem('pedidos-col-widths', JSON.stringify(next));
+        return next;
+      });
     };
     const onUp = () => {
       dragRef.current = null;
