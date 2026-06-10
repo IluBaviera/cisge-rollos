@@ -4,18 +4,65 @@ import { getSugerencia } from './api.js';
 // Metros a pedir: pedidos[] usa cant_pedida, cotizaciones[] usa cant
 const getMetros = linea => linea.cant_pedida ?? linea.cant ?? 0;
 
-function LineaRow({ linea, almacen_id }) {
+const esManguera = linea =>
+  linea.subfamilia?.toUpperCase().startsWith('MANGUERA');
+
+// ── Sección de rollo sugerido — solo se monta para mangueras ─────────────────
+
+function SugerenciaSection({ codf, metros, almacen_id }) {
   const [sug,     setSug]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
 
-  const metros = getMetros(linea);
-
   useEffect(() => {
-    getSugerencia(linea.codf, metros, almacen_id)
+    getSugerencia(codf, metros, almacen_id)
       .then(data => { setSug(data);          setLoading(false); })
       .catch(err  => { setError(err.message); setLoading(false); });
   }, []);
+
+  return (
+    <div className="border-t border-gray-100 bg-gray-50 px-4 py-2.5">
+      <div className="text-xs text-gray-400 font-medium mb-1.5">Rollo sugerido</div>
+
+      {loading && (
+        <div className="flex items-center gap-2 text-gray-400">
+          <div className="w-3 h-3 border border-blue-300 border-t-blue-600 rounded-full animate-spin flex-shrink-0" />
+          <span className="text-xs">Buscando…</span>
+        </div>
+      )}
+
+      {!loading && error && (
+        <span className="text-xs text-red-400">Sin sugerencia disponible</span>
+      )}
+
+      {!loading && sug && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+            {sug.id_rollo}
+          </span>
+          {sug.ubicacion && (
+            <span className="text-xs text-gray-500">Est. {sug.ubicacion}</span>
+          )}
+          {sug.metros_actuales != null && (() => {
+            const sob = sug.metros_actuales - metros;
+            return (
+              <span className={`text-xs font-semibold ml-auto ${
+                sob > 5 ? 'text-emerald-600' : sob > 1 ? 'text-amber-500' : 'text-red-500'
+              }`}>
+                Sobrante: {sob.toFixed(2)} m
+              </span>
+            );
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Línea de pedido ───────────────────────────────────────────────────────────
+
+function LineaRow({ linea, almacen_id }) {
+  const metros = getMetros(linea);
 
   return (
     <div className="card mb-3 overflow-hidden">
@@ -36,45 +83,15 @@ function LineaRow({ linea, almacen_id }) {
         </div>
       </div>
 
-      {/* Rollo sugerido */}
-      <div className="border-t border-gray-100 bg-gray-50 px-4 py-2.5">
-        <div className="text-xs text-gray-400 font-medium mb-1.5">Rollo sugerido</div>
-
-        {loading && (
-          <div className="flex items-center gap-2 text-gray-400">
-            <div className="w-3 h-3 border border-blue-300 border-t-blue-600 rounded-full animate-spin flex-shrink-0" />
-            <span className="text-xs">Buscando…</span>
-          </div>
-        )}
-
-        {!loading && error && (
-          <span className="text-xs text-red-400">Sin sugerencia disponible</span>
-        )}
-
-        {!loading && sug && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
-              {sug.id_rollo}
-            </span>
-            {sug.ubicacion && (
-              <span className="text-xs text-gray-500">Est. {sug.ubicacion}</span>
-            )}
-            {sug.metros_actuales != null && (() => {
-              const sob = sug.metros_actuales - metros;
-              return (
-                <span className={`text-xs font-semibold ml-auto ${
-                  sob > 5 ? 'text-emerald-600' : sob > 1 ? 'text-amber-500' : 'text-red-500'
-                }`}>
-                  Sobrante: {sob.toFixed(2)} m
-                </span>
-              );
-            })()}
-          </div>
-        )}
-      </div>
+      {/* Rollo sugerido — solo para mangueras */}
+      {esManguera(linea) && (
+        <SugerenciaSection codf={linea.codf} metros={metros} almacen_id={almacen_id} />
+      )}
     </div>
   );
 }
+
+// ── Vista de detalle ──────────────────────────────────────────────────────────
 
 export default function DetallePedidoView({ pedido, onVolver }) {
   if (!pedido) return null;
