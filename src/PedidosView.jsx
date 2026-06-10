@@ -37,8 +37,8 @@ function adaptarDocumentos({ cotizaciones = [], pedidos = [] }) {
       ? new Date(g.fecreg).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
       : '--:--';
     const fecha = g.fecreg
-      ? new Date(g.fecreg).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit' })
-      : '--/--';
+      ? new Date(g.fecreg).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      : '--/--/----';
 
     return {
       id:           g.id,
@@ -69,7 +69,7 @@ function ListHeader() {
       <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-16 flex-shrink-0">
         Vendedor
       </span>
-      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-12 text-right flex-shrink-0">
+      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-20 text-right flex-shrink-0">
         Fecha
       </span>
       <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-11 text-right flex-shrink-0">
@@ -106,7 +106,7 @@ function PedidoRow({ pedido, onClick }) {
       <span className="text-xs text-gray-500 w-16 flex-shrink-0 truncate">
         {pedido.vendedor}
       </span>
-      <span className="text-xs text-gray-400 w-12 text-right flex-shrink-0 tabular-nums">
+      <span className="text-xs text-gray-400 w-20 text-right flex-shrink-0 tabular-nums">
         {pedido.fecha}
       </span>
       <span className="text-xs text-gray-400 w-11 text-right flex-shrink-0 tabular-nums">
