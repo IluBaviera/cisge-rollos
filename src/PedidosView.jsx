@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getDocumentos } from './api.js';
 import { minutosTranscurridos, formatMin } from './data/mockData.js';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const hoy = () => {
   const d = new Date();
@@ -55,37 +57,67 @@ function adaptarDocumentos({ cotizaciones = [], pedidos = [] }) {
   });
 }
 
-// ── Encabezado de columnas ────────────────────────────────────────────────────
+// ── Definición de columnas ────────────────────────────────────────────────────
 
-function ListHeader() {
+const COLS = [
+  { key: 'id',       label: 'N° Doc',   defW: 112, flex: false },
+  { key: 'cliente',  label: 'Cliente',  defW: null, flex: true  },
+  { key: 'vendedor', label: 'Vendedor', defW: 64,  flex: false },
+  { key: 'fecha',    label: 'Fecha',    defW: 82,  flex: false },
+  { key: 'hora',     label: 'Hora',     defW: 44,  flex: false },
+  { key: 'nlineas',  label: 'Lín',      defW: 28,  flex: false },
+];
+
+const DEFAULT_WIDTHS = Object.fromEntries(
+  COLS.filter(c => !c.flex).map(c => [c.key, c.defW])
+);
+
+// ── Icono de orden ────────────────────────────────────────────────────────────
+
+function SortIcon({ active, dir }) {
+  if (!active) return <span className="ml-0.5 text-gray-300 text-xs leading-none">↕</span>;
+  return <span className="ml-0.5 text-blue-500 text-xs leading-none">{dir === 'asc' ? '↑' : '↓'}</span>;
+}
+
+// ── Encabezado ────────────────────────────────────────────────────────────────
+
+function ListHeader({ colWidths, sortCol, sortDir, onSort, onResize }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200">
-      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-28 flex-shrink-0">
-        N° Doc
-      </span>
-      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide flex-1">
-        Cliente
-      </span>
-      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-16 flex-shrink-0">
-        Vendedor
-      </span>
-      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-20 text-right flex-shrink-0">
-        Fecha
-      </span>
-      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-11 text-right flex-shrink-0">
-        Hora
-      </span>
-      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-7 text-right flex-shrink-0">
-        Lín
-      </span>
-      <span className="w-4 flex-shrink-0" />
+    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 select-none">
+      {COLS.map(col => (
+        <div
+          key={col.key}
+          className="relative flex items-center"
+          style={col.flex ? { flex: 1, minWidth: 60 } : { width: colWidths[col.key], flexShrink: 0 }}
+        >
+          <button
+            onClick={() => onSort(col.key)}
+            className="flex items-center font-semibold text-xs text-gray-400 uppercase tracking-wide hover:text-gray-600 transition-colors truncate"
+          >
+            <span className="truncate">{col.label}</span>
+            <SortIcon active={sortCol === col.key} dir={sortDir} />
+          </button>
+
+          {/* Handle de resize — solo en columnas de ancho fijo */}
+          {!col.flex && (
+            <div
+              onMouseDown={e => onResize(col.key, e)}
+              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize group"
+            >
+              <div className="absolute inset-y-1 right-0 w-0.5 bg-transparent group-hover:bg-blue-300 transition-colors rounded-full" />
+            </div>
+          )}
+        </div>
+      ))}
+      {/* Columna ✓ — sin resize ni sort */}
+      <div style={{ width: 16, flexShrink: 0 }} />
     </div>
   );
 }
 
-// ── Fila compacta ─────────────────────────────────────────────────────────────
+// ── Fila ──────────────────────────────────────────────────────────────────────
 
-function PedidoRow({ pedido, onClick }) {
+function PedidoRow({ pedido, onClick, colWidths }) {
   const urgente     = pedido.estado === 'urgente';
   const borderColor = urgente
     ? 'border-l-red-500'
@@ -97,25 +129,46 @@ function PedidoRow({ pedido, onClick }) {
       onClick={() => onClick(pedido)}
       className={`w-full text-left flex items-center gap-2 px-3 py-2.5 border-l-4 hover:bg-blue-50 active:bg-blue-100 transition-colors ${borderColor}`}
     >
-      <span className="font-mono text-xs text-blue-700 w-28 flex-shrink-0 truncate">
+      <span
+        className="font-mono text-xs text-blue-700 truncate flex-shrink-0"
+        style={{ width: colWidths.id }}
+      >
         {pedido.id}
       </span>
-      <span className="text-xs text-gray-800 flex-1 truncate">
+
+      <span className="text-xs text-gray-800 truncate flex-1 min-w-0">
         {pedido.cliente}
       </span>
-      <span className="text-xs text-gray-500 w-16 flex-shrink-0 truncate">
+
+      <span
+        className="text-xs text-gray-500 truncate flex-shrink-0"
+        style={{ width: colWidths.vendedor }}
+      >
         {pedido.vendedor}
       </span>
-      <span className="text-xs text-gray-400 w-20 text-right flex-shrink-0 tabular-nums">
+
+      <span
+        className="text-xs text-gray-400 tabular-nums text-right flex-shrink-0"
+        style={{ width: colWidths.fecha }}
+      >
         {pedido.fecha}
       </span>
-      <span className="text-xs text-gray-400 w-11 text-right flex-shrink-0 tabular-nums">
+
+      <span
+        className="text-xs text-gray-400 tabular-nums text-right flex-shrink-0"
+        style={{ width: colWidths.hora }}
+      >
         {pedido.hora}
       </span>
-      <span className="text-xs font-semibold text-gray-500 w-7 text-right flex-shrink-0 tabular-nums">
+
+      <span
+        className="text-xs font-semibold text-gray-500 tabular-nums text-right flex-shrink-0"
+        style={{ width: colWidths.nlineas }}
+      >
         {pedido.nlineas}
       </span>
-      <span className="w-4 flex-shrink-0 text-center text-xs">
+
+      <span style={{ width: 16, flexShrink: 0 }} className="text-center text-xs">
         {pedido.tiene_pedido && <span className="text-emerald-600 font-bold">✓</span>}
       </span>
     </button>
@@ -124,7 +177,7 @@ function PedidoRow({ pedido, onClick }) {
 
 // ── Tabla de sección ──────────────────────────────────────────────────────────
 
-function SeccionTabla({ titulo, count, colorTitulo, colorCount, filas, onDetalle }) {
+function SeccionTabla({ titulo, count, colorTitulo, colorCount, filas, onDetalle, colWidths, sortCol, sortDir, onSort, onResize }) {
   if (!filas.length) return null;
   return (
     <section className="mb-4">
@@ -137,10 +190,16 @@ function SeccionTabla({ titulo, count, colorTitulo, colorCount, filas, onDetalle
         </span>
       </div>
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <ListHeader />
+        <ListHeader
+          colWidths={colWidths}
+          sortCol={sortCol}
+          sortDir={sortDir}
+          onSort={onSort}
+          onResize={onResize}
+        />
         <div className="divide-y divide-gray-100">
           {filas.map(p => (
-            <PedidoRow key={p.id} pedido={p} onClick={onDetalle} />
+            <PedidoRow key={p.id} pedido={p} onClick={onDetalle} colWidths={colWidths} />
           ))}
         </div>
       </div>
@@ -156,11 +215,15 @@ const FILTROS = [
 ];
 
 export default function PedidosView({ onDetalle }) {
-  const [pedidos,  setPedidos]  = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
-  const [filtro,   setFiltro]   = useState('mangueras');
-  const [fecha,    setFecha]    = useState(hoy);
+  const [pedidos,   setPedidos]   = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(null);
+  const [filtro,    setFiltro]    = useState('mangueras');
+  const [fecha,     setFecha]     = useState(hoy);
+  const [colWidths, setColWidths] = useState(DEFAULT_WIDTHS);
+  const [sortCol,   setSortCol]   = useState(null);
+  const [sortDir,   setSortDir]   = useState('asc');
+  const dragRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
@@ -169,6 +232,31 @@ export default function PedidosView({ onDetalle }) {
       .then(data => { setPedidos(adaptarDocumentos(data)); setLoading(false); })
       .catch(err  => { setError(err.message); setLoading(false); });
   }, [fecha]);
+
+  // Ordenamiento
+  const handleSort = col => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+
+  // Resize de columna
+  const handleResize = (col, e) => {
+    e.preventDefault();
+    dragRef.current = { col, startX: e.clientX, startW: colWidths[col] };
+
+    const onMove = e => {
+      const { col, startX, startW } = dragRef.current;
+      const newW = Math.max(40, startW + e.clientX - startX);
+      setColWidths(prev => ({ ...prev, [col]: newW }));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
 
   if (loading) return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400 py-20">
@@ -198,9 +286,24 @@ export default function PedidosView({ onDetalle }) {
     l.subfamilia?.toUpperCase().includes('MANGUERA')
   );
 
-  const filtrados  = filtro === 'mangueras' ? pedidos.filter(esManguera) : pedidos;
-  const urgentes   = filtrados.filter(p => p.estado === 'urgente');
-  const pendientes = filtrados.filter(p => p.estado === 'pendiente');
+  const filtrados = filtro === 'mangueras' ? pedidos.filter(esManguera) : pedidos;
+
+  // Aplicar ordenamiento
+  const sorted = sortCol
+    ? [...filtrados].sort((a, b) => {
+        const va = a[sortCol] ?? '';
+        const vb = b[sortCol] ?? '';
+        const cmp = typeof va === 'number'
+          ? va - vb
+          : String(va).localeCompare(String(vb), 'es');
+        return sortDir === 'asc' ? cmp : -cmp;
+      })
+    : filtrados;
+
+  const urgentes   = sorted.filter(p => p.estado === 'urgente');
+  const pendientes = sorted.filter(p => p.estado === 'pendiente');
+
+  const tableProps = { colWidths, sortCol, sortDir, onSort: handleSort, onResize: handleResize };
 
   return (
     <div className="flex-1 overflow-y-auto px-3 pt-3 pb-24">
@@ -246,6 +349,7 @@ export default function PedidosView({ onDetalle }) {
         colorCount="bg-red-100 text-red-600"
         filas={urgentes}
         onDetalle={onDetalle}
+        {...tableProps}
       />
 
       <SeccionTabla
@@ -255,6 +359,7 @@ export default function PedidosView({ onDetalle }) {
         colorCount="bg-gray-100 text-gray-500"
         filas={pendientes}
         onDetalle={onDetalle}
+        {...tableProps}
       />
     </div>
   );
