@@ -2,6 +2,15 @@ import { useState, useEffect } from 'react';
 import { getDocumentos } from './api.js';
 import { minutosTranscurridos, formatMin } from './data/mockData.js';
 
+const hoy = () => {
+  const d = new Date();
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-');
+};
+
 function adaptarDocumentos({ cotizaciones = [], pedidos = [] }) {
   const todos = [...cotizaciones, ...pedidos].filter(item => item.flag !== '*');
 
@@ -27,6 +36,9 @@ function adaptarDocumentos({ cotizaciones = [], pedidos = [] }) {
     const hora = g.fecreg
       ? new Date(g.fecreg).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
       : '--:--';
+    const fecha = g.fecreg
+      ? new Date(g.fecreg).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit' })
+      : '--/--';
 
     return {
       id:           g.id,
@@ -34,6 +46,7 @@ function adaptarDocumentos({ cotizaciones = [], pedidos = [] }) {
       vendedor:     g.vendedor,
       estado:       mins > 60 ? 'urgente' : 'pendiente',
       hora,
+      fecha,
       timestamp:    ts,
       tiene_pedido: g.lineas.some(l => String(l.flag) === '1'),
       lineas:       g.lineas,
@@ -53,8 +66,11 @@ function ListHeader() {
       <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide flex-1">
         Cliente
       </span>
-      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-20 flex-shrink-0">
+      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-16 flex-shrink-0">
         Vendedor
+      </span>
+      <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-12 text-right flex-shrink-0">
+        Fecha
       </span>
       <span className="font-semibold text-xs text-gray-400 uppercase tracking-wide w-11 text-right flex-shrink-0">
         Hora
@@ -87,8 +103,11 @@ function PedidoRow({ pedido, onClick }) {
       <span className="text-xs text-gray-800 flex-1 truncate">
         {pedido.cliente}
       </span>
-      <span className="text-xs text-gray-500 w-20 flex-shrink-0 truncate">
+      <span className="text-xs text-gray-500 w-16 flex-shrink-0 truncate">
         {pedido.vendedor}
+      </span>
+      <span className="text-xs text-gray-400 w-12 text-right flex-shrink-0 tabular-nums">
+        {pedido.fecha}
       </span>
       <span className="text-xs text-gray-400 w-11 text-right flex-shrink-0 tabular-nums">
         {pedido.hora}
@@ -141,12 +160,15 @@ export default function PedidosView({ onDetalle }) {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
   const [filtro,   setFiltro]   = useState('mangueras');
+  const [fecha,    setFecha]    = useState(hoy);
 
   useEffect(() => {
-    getDocumentos(1)
+    setLoading(true);
+    setError(null);
+    getDocumentos(1, fecha)
       .then(data => { setPedidos(adaptarDocumentos(data)); setLoading(false); })
       .catch(err  => { setError(err.message); setLoading(false); });
-  }, []);
+  }, [fecha]);
 
   if (loading) return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400 py-20">
@@ -182,6 +204,25 @@ export default function PedidosView({ onDetalle }) {
 
   return (
     <div className="flex-1 overflow-y-auto px-3 pt-3 pb-24">
+
+      {/* Selector de fecha */}
+      <div className="flex items-center gap-2 mb-3">
+        <input
+          type="date"
+          value={fecha}
+          max={hoy()}
+          onChange={e => setFecha(e.target.value)}
+          className="input text-sm flex-1"
+        />
+        {fecha !== hoy() && (
+          <button
+            onClick={() => setFecha(hoy())}
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 transition-colors flex-shrink-0"
+          >
+            Hoy
+          </button>
+        )}
+      </div>
 
       {/* Filtros */}
       <div className="flex items-center gap-2 mb-3">
