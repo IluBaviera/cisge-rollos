@@ -42,15 +42,18 @@ function adaptarDocumentos({ cotizaciones = [], pedidos = [] }) {
       ? new Date(g.fecreg).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
       : '--/--/----';
 
+    const aprobado = g.lineas.some(l => String(l.flag) === '1');
+
     return {
       id:           g.id,
       cliente:      g.cliente,
       vendedor:     g.vendedor,
       estado:       mins > 60 ? 'urgente' : 'pendiente',
+      aprobacion:   aprobado ? 'Aprobado' : 'Evaluación',
       hora,
       fecha,
       timestamp:    ts,
-      tiene_pedido: g.lineas.some(l => String(l.flag) === '1'),
+      tiene_pedido: aprobado,
       lineas:       g.lineas,
       nlineas:      g.lineas.length,
     };
@@ -60,12 +63,13 @@ function adaptarDocumentos({ cotizaciones = [], pedidos = [] }) {
 // ── Definición de columnas ────────────────────────────────────────────────────
 
 const COLS = [
-  { key: 'id',       label: 'N° Doc',   defW: 112, flex: false },
-  { key: 'cliente',  label: 'Cliente',  defW: null, flex: true  },
-  { key: 'vendedor', label: 'Vendedor', defW: 64,  flex: false },
-  { key: 'fecha',    label: 'Fecha',    defW: 82,  flex: false },
-  { key: 'hora',     label: 'Hora',     defW: 44,  flex: false },
-  { key: 'nlineas',  label: 'Lín',      defW: 28,  flex: false },
+  { key: 'id',         label: 'N° Doc',   defW: 112, flex: false },
+  { key: 'cliente',    label: 'Cliente',  defW: null, flex: true  },
+  { key: 'vendedor',   label: 'Vendedor', defW: 64,  flex: false },
+  { key: 'fecha',      label: 'Fecha',    defW: 82,  flex: false },
+  { key: 'hora',       label: 'Hora',     defW: 44,  flex: false },
+  { key: 'nlineas',    label: 'Lín',      defW: 28,  flex: false },
+  { key: 'aprobacion', label: 'Estado',   defW: 76,  flex: false },
 ];
 
 const DEFAULT_WIDTHS = Object.fromEntries(
@@ -109,8 +113,6 @@ function ListHeader({ colWidths, sortCol, sortDir, onSort, onResize }) {
           )}
         </div>
       ))}
-      {/* Columna ✓ — sin resize ni sort */}
-      <div style={{ width: 16, flexShrink: 0 }} />
     </div>
   );
 }
@@ -168,8 +170,17 @@ function PedidoRow({ pedido, onClick, colWidths }) {
         {pedido.nlineas}
       </span>
 
-      <span style={{ width: 16, flexShrink: 0 }} className="text-center text-xs">
-        {pedido.tiene_pedido && <span className="text-emerald-600 font-bold">✓</span>}
+      <span
+        className="flex-shrink-0 flex justify-end"
+        style={{ width: colWidths.aprobacion }}
+      >
+        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
+          pedido.aprobacion === 'Aprobado'
+            ? 'bg-emerald-100 text-emerald-700'
+            : 'bg-gray-100 text-gray-500'
+        }`}>
+          {pedido.aprobacion}
+        </span>
       </span>
     </button>
   );
