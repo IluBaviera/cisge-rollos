@@ -14,7 +14,8 @@ const hoy = () => {
 };
 
 function adaptarDocumentos({ cotizaciones = [], pedidos = [] }) {
-  const todos = [...cotizaciones, ...pedidos].filter(item => item.flag !== '*');
+  // Incluye anulados (flag '*'): se muestran marcados como "Anulado".
+  const todos = [...cotizaciones, ...pedidos];
 
   const grupos = {};
   todos.forEach(item => {
@@ -43,13 +44,15 @@ function adaptarDocumentos({ cotizaciones = [], pedidos = [] }) {
       : '--/--/----';
 
     const aprobado = g.lineas.some(l => String(l.flag) === '1');
+    const anulado  = g.lineas.some(l => String(l.flag) === '*');
 
     return {
       id:           g.id,
       cliente:      g.cliente,
       vendedor:     g.vendedor,
-      estado:       mins > 60 ? 'urgente' : 'pendiente',
-      aprobacion:   aprobado ? 'Aprobado' : 'Evaluación',
+      estado:       anulado ? 'anulado' : mins > 60 ? 'urgente' : 'pendiente',
+      aprobacion:   anulado ? 'Anulado' : aprobado ? 'Aprobado' : 'Evaluación',
+      anulado,
       hora,
       fecha,
       timestamp:    ts,
@@ -121,15 +124,16 @@ function ListHeader({ colWidths, sortCol, sortDir, onSort, onResize }) {
 
 function PedidoRow({ pedido, onClick, colWidths }) {
   const urgente     = pedido.estado === 'urgente';
-  const borderColor = urgente
-    ? 'border-l-red-500'
+  const borderColor = pedido.anulado
+    ? 'border-l-gray-300'
+    : urgente ? 'border-l-red-500'
     : pedido.tiene_pedido ? 'border-l-emerald-500'
     : 'border-l-gray-200';
 
   return (
     <button
       onClick={() => onClick(pedido)}
-      className={`w-full text-left flex items-center gap-2 px-3 py-2.5 border-l-4 hover:bg-blue-50 active:bg-blue-100 transition-colors ${borderColor}`}
+      className={`w-full text-left flex items-center gap-2 px-3 py-2.5 border-l-4 hover:bg-blue-50 active:bg-blue-100 transition-colors ${borderColor} ${pedido.anulado ? 'opacity-60' : ''}`}
     >
       <span
         className="font-mono text-xs text-blue-700 truncate flex-shrink-0"
@@ -177,6 +181,8 @@ function PedidoRow({ pedido, onClick, colWidths }) {
         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
           pedido.aprobacion === 'Aprobado'
             ? 'bg-emerald-100 text-emerald-700'
+            : pedido.aprobacion === 'Anulado'
+            ? 'bg-red-100 text-red-600'
             : 'bg-gray-100 text-gray-500'
         }`}>
           {pedido.aprobacion}
@@ -315,9 +321,6 @@ export default function PedidosView({ onDetalle }) {
       })
     : filtrados;
 
-  const urgentes   = sorted.filter(p => p.estado === 'urgente');
-  const pendientes = sorted.filter(p => p.estado === 'pendiente');
-
   const tableProps = { colWidths, sortCol, sortDir, onSort: handleSort, onResize: handleResize };
 
   return (
@@ -339,6 +342,9 @@ export default function PedidosView({ onDetalle }) {
           </button>
         ))}
         <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+          {filtrados.length > 0 && (
+            <span className="text-xs text-gray-400 tabular-nums">{filtrados.length}</span>
+          )}
           {fecha !== hoy() && (
             <button
               onClick={() => setFecha(hoy())}
@@ -357,32 +363,20 @@ export default function PedidosView({ onDetalle }) {
         </div>
       </div>
 
-      {urgentes.length === 0 && pendientes.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 text-gray-400 py-20">
           <span className="text-4xl">📋</span>
           <p className="text-sm">Sin cotizaciones para esta fecha</p>
         </div>
       ) : (
-        <>
-          <SeccionTabla
-            titulo="🔴 Urgentes"
-            count={urgentes.length}
-            colorTitulo="text-red-600"
-            colorCount="bg-red-100 text-red-600"
-            filas={urgentes}
-            onDetalle={onDetalle}
-            {...tableProps}
-          />
-          <SeccionTabla
-            titulo="Pendientes"
-            count={pendientes.length}
-            colorTitulo="text-gray-500"
-            colorCount="bg-gray-100 text-gray-500"
-            filas={pendientes}
-            onDetalle={onDetalle}
-            {...tableProps}
-          />
-        </>
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <ListHeader {...tableProps} />
+          <div className="divide-y divide-gray-100">
+            {sorted.map(p => (
+              <PedidoRow key={p.id} pedido={p} onClick={onDetalle} colWidths={colWidths} />
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
