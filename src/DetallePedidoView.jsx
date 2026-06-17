@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
-import { getSugerencia } from './api.js';
+import { useState, useEffect, useCallback } from 'react';
+import { getSugerencia, postMovimiento } from './api.js';
 import Modal from './Modal.jsx';
 
-// Metros a pedir: pedidos[] usa cant_pedida, cotizaciones[] usa cant
 const getMetros = linea => linea.cant_pedida ?? linea.cant ?? 0;
 
 const TIPOS_ROSCA = ['NPT', 'NPTF', 'BSP', 'JIC', 'ORFS', 'SAE', 'UNF', 'UNC'];
@@ -22,33 +21,47 @@ const esManguera = linea => {
 
 // ── Sección de rollo sugerido — solo se monta para mangueras ─────────────────
 
-function SugerenciaSection({ codf, metros, almacen_id }) {
+function SugerenciaSection({ codf, metros, almacen_id, onChange }) {
   const [data,         setData]         = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
   const [seleccionado, setSeleccionado] = useState(null);
-  const [metrosRollo,  setMetrosRollo]  = useState('');
+  const [sobrante,     setSobrante]     = useState('');
   const [modalAbierto, setModalAbierto] = useState(false);
 
   useEffect(() => {
     getSugerencia(codf, metros, almacen_id)
       .then(d => {
         setData(d);
-        setSeleccionado(d.sugerido?.id_rollo ?? null);
-        setMetrosRollo(String(d.sugerido?.metros_actuales ?? ''));
+        const sug = d.sugerido;
+        setSeleccionado(sug?.id_rollo ?? null);
+        setSobrante(sug ? (sug.metros_actuales - metros).toFixed(1) : '');
         setLoading(false);
       })
       .catch(err => { setError(err.message); setLoading(false); });
   }, []);
 
   const rolloActivo = data?.todos?.find(r => r.id_rollo === seleccionado) ?? data?.sugerido;
-  const sobrante    = parseFloat(metrosRollo) - metros;
+
+  // Notificar al padre cada vez que cambie la selección o el sobrante editado
+  useEffect(() => {
+    if (!seleccionado || !rolloActivo) return;
+    const sob = parseFloat(sobrante);
+    const metros_cortar = isNaN(sob) ? 0 : rolloActivo.metros_actuales - sob;
+    onChange?.({ id_rollo: seleccionado, metros_cortar, metros_actuales: rolloActivo.metros_actuales });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seleccionado, sobrante, data]);
 
   const handleSelect = rollo => {
     setSeleccionado(rollo.id_rollo);
-    setMetrosRollo(String(rollo.metros_actuales));
+    setSobrante((rollo.metros_actuales - metros).toFixed(1));
     setModalAbierto(false);
   };
+
+  const sobranteNum = parseFloat(sobrante);
+  const sobColor = isNaN(sobranteNum)
+    ? 'text-gray-400'
+    : sobranteNum > 5 ? 'text-emerald-600' : sobranteNum >= 0 ? 'text-amber-500' : 'text-red-500';
 
   return (
     <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
@@ -75,27 +88,17 @@ function SugerenciaSection({ codf, metros, almacen_id }) {
           {rolloActivo.ubicacion && (
             <span className="text-xs text-gray-500 flex-shrink-0">Est. {rolloActivo.ubicacion}</span>
           )}
+          <span className="text-xs text-gray-300 flex-shrink-0">{rolloActivo.metros_actuales.toFixed(1)} m</span>
 
-          {/* Sobrante */}
-          {!isNaN(sobrante) && (
-            <span className={`text-xs font-semibold flex-shrink-0 ${
-              sobrante >= 0
-                ? sobrante > 5 ? 'text-emerald-600' : 'text-amber-500'
-                : 'text-red-500'
-            }`}>
-              {sobrante >= 0 ? `+${sobrante.toFixed(1)}` : sobrante.toFixed(1)} m
-            </span>
-          )}
-
-          {/* Metros editables */}
+          {/* Sobrante editable */}
           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+            <span className="text-xs text-gray-400">Sobrante</span>
             <input
               type="number"
-              value={metrosRollo}
-              onChange={e => setMetrosRollo(e.target.value)}
-              className="w-16 text-xs text-right border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400 bg-white"
+              value={sobrante}
+              onChange={e => setSobrante(e.target.value)}
+              className={`w-16 text-xs text-right border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400 bg-white font-semibold ${sobColor}`}
               step="0.1"
-              min="0"
             />
             <span className="text-xs text-gray-400">m</span>
           </div>
@@ -153,12 +156,11 @@ function SugerenciaSection({ codf, metros, almacen_id }) {
 
 // ── Línea de pedido ───────────────────────────────────────────────────────────
 
-function LineaRow({ linea, almacen_id }) {
+function LineaRow({ linea, almacen_id, onSugerenciaChange }) {
   const metros = getMetros(linea);
 
   return (
     <div className="card mb-3 overflow-hidden">
-      {/* Producto */}
       <div className="px-4 py-3 flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="font-medium text-sm text-gray-900 leading-tight">{linea.descr}</div>
@@ -175,9 +177,13 @@ function LineaRow({ linea, almacen_id }) {
         </div>
       </div>
 
-      {/* Rollo sugerido — solo para mangueras */}
       {esManguera(linea) && (
-        <SugerenciaSection codf={linea.codf} metros={metros} almacen_id={almacen_id} />
+        <SugerenciaSection
+          codf={linea.codf}
+          metros={metros}
+          almacen_id={almacen_id}
+          onChange={onSugerenciaChange}
+        />
       )}
     </div>
   );
@@ -186,6 +192,11 @@ function LineaRow({ linea, almacen_id }) {
 // ── Vista de detalle ──────────────────────────────────────────────────────────
 
 export default function DetallePedidoView({ pedido, onVolver }) {
+  const [sugerencias,   setSugerencias]   = useState({});
+  const [guardando,     setGuardando]     = useState(false);
+  const [guardadoError, setGuardadoError] = useState(null);
+  const [guardadoOk,    setGuardadoOk]    = useState(false);
+
   if (!pedido) return null;
 
   const urgente = pedido.estado === 'urgente';
@@ -194,6 +205,37 @@ export default function DetallePedidoView({ pedido, onVolver }) {
         day: '2-digit', month: '2-digit', year: 'numeric',
       })
     : '--';
+
+  const lineasManguera = pedido.lineas?.filter(esManguera) ?? [];
+
+  const handleSugerenciaChange = useCallback((key, data) => {
+    setSugerencias(prev => ({ ...prev, [key]: data }));
+  }, []);
+
+  const handleGuardar = async () => {
+    setGuardando(true);
+    setGuardadoError(null);
+    setGuardadoOk(false);
+    const pedido_erp = String(pedido.ndocu_pedido ?? pedido.id ?? '');
+    try {
+      for (const s of Object.values(sugerencias)) {
+        if (!s.id_rollo || s.metros_cortar <= 0) continue;
+        await postMovimiento({
+          id_rollo:   s.id_rollo,
+          metros:     parseFloat(s.metros_cortar.toFixed(3)),
+          pedido_erp,
+          usuario:    'almacen',
+        });
+      }
+      setGuardadoOk(true);
+    } catch (err) {
+      setGuardadoError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const hayMovimientos = Object.values(sugerencias).some(s => s.id_rollo && s.metros_cortar > 0);
 
   return (
     <div className="flex flex-col h-full">
@@ -220,7 +262,7 @@ export default function DetallePedidoView({ pedido, onVolver }) {
       </div>
 
       {/* Lista de líneas */}
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-8">
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4">
         {!pedido.lineas?.length ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <span className="text-3xl mb-2">📋</span>
@@ -236,9 +278,31 @@ export default function DetallePedidoView({ pedido, onVolver }) {
                 key={`${linea.codf}-${i}`}
                 linea={linea}
                 almacen_id={1}
+                onSugerenciaChange={data => handleSugerenciaChange(`${linea.codf}-${i}`, data)}
               />
             ))}
           </>
+        )}
+
+        {/* Botón guardar — solo si hay mangueras */}
+        {lineasManguera.length > 0 && (
+          <div className="mt-2 pb-6">
+            {guardadoOk && (
+              <p className="text-emerald-600 text-xs text-center mb-2 font-medium">
+                Movimientos registrados correctamente
+              </p>
+            )}
+            {guardadoError && (
+              <p className="text-red-500 text-xs text-center mb-2 break-all">{guardadoError}</p>
+            )}
+            <button
+              onClick={handleGuardar}
+              disabled={guardando || !hayMovimientos}
+              className="w-full py-3 rounded-xl bg-blue-700 text-white text-sm font-semibold disabled:opacity-40 transition-opacity"
+            >
+              {guardando ? 'Guardando…' : 'Guardar cortes de rollo'}
+            </button>
+          </div>
         )}
       </div>
     </div>
